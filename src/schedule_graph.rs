@@ -12,13 +12,14 @@ use crate::work_order::WorkOrderNumber;
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum ScheduleGraphErrors
 {
-    WorkerMissing,
-    WorkOrderMissing,
-    WorkOrderDuplicate,
-    WorkOrderActivityMissingSkills,
-    PeriodMissing,
+    DayMissing,
     PeriodDuplicate,
+    PeriodMissing,
     SkillMissing,
+    WorkOrderActivityMissingSkills,
+    WorkOrderDuplicate,
+    WorkOrderMissing,
+    WorkerMissing,
 }
 
 pub type NodeIndex = usize;
@@ -59,6 +60,7 @@ pub enum EdgeType
 {
     Assign,
     Available,
+    BasicStart,
     Contains,
     Requires,
     StartStart,
@@ -120,6 +122,10 @@ impl ScheduleGraph
         {
             return Err(ScheduleGraphErrors::WorkOrderActivityMissingSkills);
         }
+
+        let day_node = self.day_indices.get(&work_order.basic_start()).ok_or(ScheduleGraphErrors::DayMissing)?;
+
+        self.add_edge(EdgeType::BasicStart, vec![work_order_node, *day_node]);
 
         //
         let mut previous_activity_node = usize::MAX;
@@ -190,7 +196,7 @@ impl ScheduleGraph
 
     pub fn find_all_assignments_for_period(&self, period_start_date: Period) -> Result<Vec<HyperEdge>, ScheduleGraphErrors>
     {
-        if !self.nodes.iter().any(|e| (e == &Nodes::Period(period_start_date))) {
+        if !self.nodes.iter().any(|e| e == &Nodes::Period(period_start_date)) {
             return Err(ScheduleGraphErrors::PeriodMissing);
         }
         Ok(self
@@ -424,6 +430,7 @@ mod tests
         );
     }
 
+    #[test]
     fn test_add_period()
     {
         let mut schedule_state = ScheduleGraph::new();

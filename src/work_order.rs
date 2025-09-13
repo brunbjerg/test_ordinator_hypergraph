@@ -87,6 +87,11 @@ impl WorkOrder
     {
         (0..self.activities.len()).map(|_| ActivityRelation::FinishStart).collect()
     }
+
+    pub(crate) fn basic_start(&self) -> NaiveDate
+    {
+        self.basic_start_date
+    }
 }
 pub enum ActivityRelation
 {
