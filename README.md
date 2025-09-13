@@ -9,6 +9,9 @@ in the code.
 ### TODOs 
 
 Handle 
-- [ ] Implement the `basic_start_date`
+- [x] Implement the `basic_start_date`
+
+Take a break now!
+- [ ] Implement the bidirectional `incidence` list
 - [ ] Implement `Technician`/`Worker` aggregate
-- [ ] 
+- [ ] Implement New Type pattern on indices
