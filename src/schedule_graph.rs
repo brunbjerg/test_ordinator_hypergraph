@@ -39,7 +39,7 @@ pub struct HyperEdge
 }
 
 #[derive(Hash, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub enum Nodes
+pub enum Node
 {
     Worker(Worker),
     WorkOrder(WorkOrderNumber),
@@ -72,7 +72,7 @@ pub enum EdgeType
 pub struct ScheduleGraph
 {
     /// Nodes of the problem
-    nodes: Vec<Nodes>,
+    nodes: Vec<Node>,
 
     /// Hyperedges to handle all the complex interactions
     hyperedges: Vec<HyperEdge>,
@@ -106,9 +106,9 @@ impl ScheduleGraph
     }
 }
 
-impl ScheduleGraph {
-    pub fn work_order_relations(&self, work_order: &WorkOrder) -> Result<Vec<()>>
-}
+// impl ScheduleGraph {
+//     pub fn work_order_relations(&self, work_order: &WorkOrder) ->
+// Result<Vec<()>> }
 
 /// Public API to add [`Nodes`] to the graph.
 impl ScheduleGraph
@@ -127,7 +127,7 @@ impl ScheduleGraph
 
         // Crucial lesson! This cannot come first! You learned something great here!
         let work_order_node = match self.work_order_indices.entry(work_order.number()) {
-            Entry::Vacant(_new_work_order) => self.add_node(Nodes::WorkOrder(work_order.number())),
+            Entry::Vacant(_new_work_order) => self.add_node(Node::WorkOrder(work_order.number())),
             Entry::Occupied(_already_inserted_work_order) => return Err(ScheduleGraphErrors::WorkOrderDuplicate),
         };
 
@@ -138,7 +138,7 @@ impl ScheduleGraph
         let mut previous_activity_node = usize::MAX;
         let activity_relations = work_order.activities_relations();
         for (activity_index, activity) in work_order.activities().iter().enumerate() {
-            let activity_node = self.add_node(Nodes::Activity(activity.number()));
+            let activity_node = self.add_node(Node::Activity(activity.number()));
             dbg!(activity, activity_node);
             let skill_node = *self.skill_indices.get(&activity.skill()).ok_or(ScheduleGraphErrors::SkillMissing)?;
 
@@ -171,11 +171,11 @@ impl ScheduleGraph
         let days_in_period = (0..14).map(|e| period.0 + chrono::Days::new(e)).collect::<Vec<_>>();
 
         for day in days_in_period {
-            let day_node = self.add_node(Nodes::Day(day));
+            let day_node = self.add_node(Node::Day(day));
             self.day_indices.insert(day, day_node);
         }
 
-        let node_id = self.add_node(Nodes::Period(period));
+        let node_id = self.add_node(Node::Period(period));
 
         self.period_indices.insert(period, node_id);
         Ok(node_id)
@@ -205,7 +205,7 @@ impl ScheduleGraph
 
     pub fn find_all_assignments_for_period(&self, period_start_date: Period) -> Result<Vec<HyperEdge>, ScheduleGraphErrors>
     {
-        if !self.nodes.iter().any(|e| e == &Nodes::Period(period_start_date)) {
+        if !self.nodes.iter().any(|e| e == &Node::Period(period_start_date)) {
             return Err(ScheduleGraphErrors::PeriodMissing);
         }
         Ok(self
@@ -232,20 +232,20 @@ impl ScheduleGraph
 /// found in `ordinator-scheduling-environment`
 impl ScheduleGraph
 {
-    fn add_node(&mut self, node: Nodes) -> NodeIndex
+    fn add_node(&mut self, node: Node) -> NodeIndex
     {
         // This is the next element as `len()` is one larger than the last index
         let node_index = self.nodes.len();
         let none_checker = match node {
-            Nodes::Worker(worker) => self.worker_indices.insert(worker, node_index),
-            Nodes::WorkOrder(work_order) => self.work_order_indices.insert(work_order, node_index),
-            Nodes::Period(naive_date) => self.period_indices.insert(naive_date, node_index),
-            Nodes::Skill(skills) => self.skill_indices.insert(skills, node_index),
-            Nodes::Activity(a) => {
+            Node::Worker(worker) => self.worker_indices.insert(worker, node_index),
+            Node::WorkOrder(work_order) => self.work_order_indices.insert(work_order, node_index),
+            Node::Period(naive_date) => self.period_indices.insert(naive_date, node_index),
+            Node::Skill(skills) => self.skill_indices.insert(skills, node_index),
+            Node::Activity(a) => {
                 debug!(target: "developer", activity = a, "No node index for `Activities`");
                 None
             }
-            Nodes::Day(naive_date) => self.day_indices.insert(naive_date, node_index),
+            Node::Day(naive_date) => self.day_indices.insert(naive_date, node_index),
         };
         assert!(none_checker.is_none());
 
@@ -285,7 +285,7 @@ mod tests
     use chrono::NaiveDate;
 
     use super::HyperEdge;
-    use super::Nodes;
+    use super::Node;
     use super::ScheduleGraph;
     use super::Skills;
     use crate::schedule_graph::EdgeType;
@@ -309,13 +309,13 @@ mod tests
         let mut schedule_graph = ScheduleGraph::new();
 
         let date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
-        let index_worker = schedule_graph.add_node(Nodes::Worker(1234));
-        let index_workorder = schedule_graph.add_node(Nodes::WorkOrder(1122334455));
+        let index_worker = schedule_graph.add_node(Node::Worker(1234));
+        let index_workorder = schedule_graph.add_node(Node::WorkOrder(1122334455));
         let index_period = schedule_graph.add_period(Period(date)).unwrap();
 
-        assert!(schedule_graph.nodes[index_worker] == Nodes::Worker(1234));
-        assert!(schedule_graph.nodes[index_workorder] == Nodes::WorkOrder(1122334455));
-        assert!(schedule_graph.nodes[index_period] == Nodes::Period(Period(date)));
+        assert!(schedule_graph.nodes[index_worker] == Node::Worker(1234));
+        assert!(schedule_graph.nodes[index_workorder] == Node::WorkOrder(1122334455));
+        assert!(schedule_graph.nodes[index_period] == Node::Period(Period(date)));
 
         schedule_graph.add_assignment(1234, 1122334455, Period(date)).unwrap();
     }
@@ -325,7 +325,7 @@ mod tests
     {
         let mut schedule_graph = ScheduleGraph::new();
 
-        let skill_node_id = schedule_graph.add_node(Nodes::Skill(Skills::MtnMech));
+        let skill_node_id = schedule_graph.add_node(Node::Skill(Skills::MtnMech));
 
         let basic_start_date = NaiveDate::from_ymd_opt(2025, 1, 13).unwrap();
         let work_order = WorkOrder::new(
@@ -344,13 +344,13 @@ mod tests
         let period_node_id = schedule_graph.add_period(Period(basic_start_date)).unwrap();
         let work_order_node_id = schedule_graph.add_work_order(&work_order).expect("Could not add work order");
 
-        assert_eq!(schedule_graph.nodes[work_order_node_id], Nodes::WorkOrder(1122334455));
+        assert_eq!(schedule_graph.nodes[work_order_node_id], Node::WorkOrder(1122334455));
 
         // let neighbors = schedule_graph..neighbors(node_id).collect::<Vec<_>>();
 
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 1], Nodes::Activity(10));
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 2], Nodes::Activity(20));
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 3], Nodes::Activity(30));
+        assert_eq!(schedule_graph.nodes[work_order_node_id + 1], Node::Activity(10));
+        assert_eq!(schedule_graph.nodes[work_order_node_id + 2], Node::Activity(20));
+        assert_eq!(schedule_graph.nodes[work_order_node_id + 3], Node::Activity(30));
 
         let _edge_index = schedule_graph.incidence_list[work_order_node_id + 1]
             .iter()
@@ -423,11 +423,11 @@ mod tests
         let mut schedule_graph = ScheduleGraph::new();
 
         let date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
-        let node = Nodes::Worker(1234);
+        let node = Node::Worker(1234);
         let index_worker_1 = schedule_graph.add_node(node.clone());
-        let node1 = Nodes::WorkOrder(1122334455);
+        let node1 = Node::WorkOrder(1122334455);
         let index_workorder_1 = schedule_graph.add_node(node1.clone());
-        let node2 = Nodes::Period(Period(date));
+        let node2 = Node::Period(Period(date));
         let index_period_1 = schedule_graph.add_node(node2.clone());
 
         assert!(schedule_graph.nodes[index_worker_1] == node);
@@ -435,9 +435,9 @@ mod tests
         assert!(schedule_graph.nodes[index_period_1] == node2);
         schedule_graph.add_assignment(1234, 1122334455, Period(date)).unwrap();
 
-        let node3 = Nodes::Worker(1236);
+        let node3 = Node::Worker(1236);
         let index_worker_2 = schedule_graph.add_node(node3.clone());
-        let node4 = Nodes::WorkOrder(1122334456);
+        let node4 = Node::WorkOrder(1122334456);
         let index_workorder_2 = schedule_graph.add_node(node4.clone());
 
         assert!(schedule_graph.nodes[index_worker_2] == node3);
@@ -469,8 +469,8 @@ mod tests
     {
         let mut schedule_graph = ScheduleGraph::new();
 
-        let _worker_node = schedule_graph.add_node(Nodes::Worker(1234));
-        let _skill_node = schedule_graph.add_node(Nodes::Skill(Skills::MtnMech));
+        let _worker_node = schedule_graph.add_node(Node::Worker(1234));
+        let _skill_node = schedule_graph.add_node(Node::Skill(Skills::MtnMech));
 
         assert!(schedule_graph.add_assign_skill_to_worker(1234, super::Skills::MtnMech).is_ok());
         assert_eq!(
@@ -508,14 +508,47 @@ mod tests
             date += Duration::days(1);
         }
 
-        let hash_set_days = schedule_state
-            .nodes
-            .iter()
-            .filter(|&e| matches!(e, Nodes::Day(_)))
-            .collect::<HashSet<_>>();
+        let hash_set_days = schedule_state.nodes.iter().filter(|&e| matches!(e, Node::Day(_))).collect::<HashSet<_>>();
 
-        let vec_days = schedule_state.nodes.iter().filter(|&e| matches!(e, Nodes::Day(_))).collect::<Vec<_>>();
+        let vec_days = schedule_state.nodes.iter().filter(|&e| matches!(e, Node::Day(_))).collect::<Vec<_>>();
 
         assert_eq!(hash_set_days.len(), vec_days.len())
+    }
+
+    #[test]
+    fn test_multi_directional_hypergraph()
+    {
+        let mut schedule_graph = ScheduleGraph::new();
+
+        let node_0 = Node::WorkOrder(1111990000);
+        let node_1 = Node::WorkOrder(1111990001);
+        let node_2 = Node::WorkOrder(1111990002);
+        let node_3 = Node::WorkOrder(1111990003);
+        let node_4 = Node::WorkOrder(1111990004);
+        let node_5 = Node::WorkOrder(1111990005);
+        let node_6 = Node::WorkOrder(1111990006);
+        let node_7 = Node::WorkOrder(1111990007);
+
+        let node_index_0 = schedule_graph.add_node(node_0);
+        let node_index_1 = schedule_graph.add_node(node_1);
+        let node_index_2 = schedule_graph.add_node(node_2);
+        let node_index_3 = schedule_graph.add_node(node_3);
+        let node_index_4 = schedule_graph.add_node(node_4);
+        let node_index_5 = schedule_graph.add_node(node_5);
+        let node_index_6 = schedule_graph.add_node(node_6);
+        let node_index_7 = schedule_graph.add_node(node_7);
+
+        let edge_index_0 = schedule_graph.add_edge(EdgeType::Assign, vec![0, 2, 4, 6]);
+        let edge_index_1 = schedule_graph.add_edge(EdgeType::Assign, vec![1, 3, 5, 7]);
+        let edge_index_2 = schedule_graph.add_edge(EdgeType::Assign, vec![0, 3, 6]);
+
+        assert_eq!(schedule_graph.incidence_list[node_index_0], vec![edge_index_0, edge_index_2]);
+        assert_eq!(schedule_graph.incidence_list[node_index_1], vec![edge_index_1]);
+        assert_eq!(schedule_graph.incidence_list[node_index_2], vec![edge_index_0]);
+        assert_eq!(schedule_graph.incidence_list[node_index_3], vec![edge_index_1, edge_index_2]);
+        assert_eq!(schedule_graph.incidence_list[node_index_4], vec![edge_index_0]);
+        assert_eq!(schedule_graph.incidence_list[node_index_5], vec![edge_index_1]);
+        assert_eq!(schedule_graph.incidence_list[node_index_6], vec![edge_index_0, edge_index_2]);
+        assert_eq!(schedule_graph.incidence_list[node_index_7], vec![edge_index_1]);
     }
 }
