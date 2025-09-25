@@ -550,5 +550,10 @@ mod tests
         assert_eq!(schedule_graph.incidence_list[node_index_5], vec![edge_index_1]);
         assert_eq!(schedule_graph.incidence_list[node_index_6], vec![edge_index_0, edge_index_2]);
         assert_eq!(schedule_graph.incidence_list[node_index_7], vec![edge_index_1]);
+
+        dbg!(std::mem::size_of::<ScheduleGraph>());
+        dbg!(std::mem::size_of_val(&schedule_graph));
+
+        panic!();
     }
 }
