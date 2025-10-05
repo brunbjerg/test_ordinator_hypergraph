@@ -3,26 +3,28 @@ use std::collections::HashSet;
 use chrono::NaiveDate;
 use chrono::TimeDelta;
 
-use crate::schedule_graph::Skills;
+use crate::schedule_graph::Skill;
 
 pub type WorkOrderNumber = u64;
+pub type NumberOfPeople = u64;
 
 pub type ActivityNumber = u64;
 #[derive(Hash, Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Activity
 {
     activity_number: ActivityNumber,
-    resource: Skills,
+    number: NumberOfPeople,
+    resource: Skill,
 }
 
 impl Activity
 {
-    pub fn number(&self) -> ActivityNumber
+    pub fn activity_number(&self) -> ActivityNumber
     {
         self.activity_number
     }
 
-    pub fn skill(&self) -> Skills
+    pub fn skill(&self) -> Skill
     {
         self.resource
     }
@@ -30,14 +32,18 @@ impl Activity
 
 impl Activity
 {
-    pub fn new(activity_number: u64, resource: Skills) -> Self
+    pub fn new(activity_number: u64, number_of_people: NumberOfPeople, resource: Skill) -> Self
     {
-        Self { activity_number, resource }
+        Self {
+            activity_number,
+            resource,
+            number: number_of_people,
+        }
     }
 }
 pub struct WorkOrder
 {
-    number: WorkOrderNumber,
+    work_order_number: WorkOrderNumber,
     basic_start_date: NaiveDate,
     activities: Vec<Activity>,
 }
@@ -52,10 +58,10 @@ pub enum WorkOrderError
 
 impl WorkOrder
 {
-    pub fn new(number: WorkOrderNumber, basic_start_date: NaiveDate, activities: Vec<Activity>) -> Result<Self, WorkOrderError>
+    pub fn new(work_order_number: WorkOrderNumber, basic_start_date: NaiveDate, activities: Vec<Activity>) -> Result<Self, WorkOrderError>
     {
-        if number.to_string().len() != 10 {
-            return Err(WorkOrderError::InvalidWorkOrderNumber(number.to_string()));
+        if work_order_number.to_string().len() != 10 {
+            return Err(WorkOrderError::InvalidWorkOrderNumber(work_order_number.to_string()));
         }
 
         if !activities.is_sorted() {
@@ -67,15 +73,15 @@ impl WorkOrder
         }
 
         Ok(Self {
-            number,
+            work_order_number,
             activities,
             basic_start_date,
         })
     }
 
-    pub fn number(&self) -> WorkOrderNumber
+    pub fn work_order_number(&self) -> WorkOrderNumber
     {
-        self.number
+        self.work_order_number
     }
 
     pub fn activities(&self) -> &Vec<Activity>
