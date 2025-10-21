@@ -11,6 +11,7 @@ use crate::technician::Availability;
 use crate::technician::Technician;
 use crate::work_order::ActivityNumber;
 use crate::work_order::ActivityRelation;
+use crate::work_order::NumberOfPeople;
 use crate::work_order::WorkOrder;
 use crate::work_order::WorkOrderNumber;
 
@@ -37,6 +38,7 @@ pub enum ScheduleGraphErrors
     WorkerUnavailable,
     WorkerMissing,
     WorkerDuplicate,
+    ActivityExceedNumberOfPeople,
 }
 
 #[derive(Hash, Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -50,14 +52,21 @@ pub struct HyperEdge
 }
 
 #[derive(Hash, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub enum Node
+enum Node
 {
     Technician(TechnicianId),
     WorkOrder(WorkOrderNumber),
-    Activity(ActivityNumber),
+    Activity(ActivityNode),
     Period(Period),
     Skill(Skill),
     Day(NaiveDate),
+}
+
+#[derive(Hash, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
+struct ActivityNode
+{
+    activity_number: ActivityNumber,
+    number_of_people: NumberOfPeople,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -147,41 +156,42 @@ impl ScheduleGraph
             return Err(ScheduleGraphErrors::WorkOrderActivityMissingSkills);
         }
 
-        let day_node = *self.day_indices.get(&work_order.basic_start()).ok_or(ScheduleGraphErrors::DayMissing)?;
+        let day_node_index = *self.day_indices.get(&work_order.basic_start()).ok_or(ScheduleGraphErrors::DayMissing)?;
 
         // Crucial lesson! This cannot come first! You learned something great here!
-        let work_order_node = match self.work_order_indices.entry(work_order.work_order_number()) {
+        let work_order_node_index = match self.work_order_indices.entry(work_order.work_order_number()) {
             Entry::Vacant(_new_work_order) => self.add_node(Node::WorkOrder(work_order.work_order_number())),
             Entry::Occupied(_already_inserted_work_order) => return Err(ScheduleGraphErrors::WorkOrderDuplicate),
         };
 
-        let _basic_start_edge = self.add_edge(EdgeType::BasicStart, vec![work_order_node, day_node]);
+        let _basic_start_edge_index = self.add_edge(EdgeType::BasicStart, vec![work_order_node_index, day_node_index]);
 
         let mut previous_activity_node = usize::MAX;
         let activity_relations = work_order.activities_relations();
         for (activity_index, activity) in work_order.activities().iter().enumerate() {
-            let activity_node = self.add_node(Node::Activity(activity.activity_number()));
-            dbg!(activity, activity_node);
-            let skill_node = *self.skill_indices.get(&activity.skill()).ok_or(ScheduleGraphErrors::SkillMissing)?;
+            let activity_node_index = self.add_node(Node::Activity(ActivityNode {
+                activity_number: activity.activity_number(),
+                number_of_people: activity.number_of_people(),
+            }));
+            let skill_node_index = *self.skill_indices.get(&activity.skill()).ok_or(ScheduleGraphErrors::SkillMissing)?;
 
-            dbg!(skill_node);
-            self.add_edge(EdgeType::Contains, vec![work_order_node, activity_node]);
-            self.add_edge(EdgeType::Requires, vec![activity_node, skill_node]);
+            self.add_edge(EdgeType::Contains, vec![work_order_node_index, activity_node_index]);
+            self.add_edge(EdgeType::Requires, vec![activity_node_index, skill_node_index]);
 
             if activity_index != 0 {
                 match activity_relations[activity_index - 1] {
-                    ActivityRelation::StartStart => self.add_edge(EdgeType::StartStart, vec![previous_activity_node, activity_node]),
-                    ActivityRelation::FinishStart => self.add_edge(EdgeType::FinishStart, vec![previous_activity_node, activity_node]),
+                    ActivityRelation::StartStart => self.add_edge(EdgeType::StartStart, vec![previous_activity_node, activity_node_index]),
+                    ActivityRelation::FinishStart => self.add_edge(EdgeType::FinishStart, vec![previous_activity_node, activity_node_index]),
                     ActivityRelation::Postpone(_time_delta) => todo!(),
                 };
             };
-            previous_activity_node = activity_node;
+            previous_activity_node = activity_node_index;
         }
 
         // TODO [x] - add relationships between activities here.
 
-        self.work_order_indices.insert(work_order.work_order_number(), work_order_node);
-        Ok(work_order_node)
+        self.work_order_indices.insert(work_order.work_order_number(), work_order_node_index);
+        Ok(work_order_node_index)
     }
 
     pub fn add_period(&mut self, period: Period) -> Result<NodeIndex, ScheduleGraphErrors>
@@ -292,6 +302,7 @@ impl ScheduleGraph
     ///
     /// LIST:
     /// TODO [ ] - Daily hour estimates.
+    /// You have to handle partial assignments
     pub fn add_assignment_activity(
         &mut self,
         technicians: Vec<TechnicianId>,
@@ -307,8 +318,8 @@ impl ScheduleGraph
         }
 
         let mut technician_node_indices = vec![];
-        'technician: for technician_id in technicians {
-            let technician_node_index = self.technician_indices.get(&technician_id).ok_or(ScheduleGraphErrors::WorkerMissing)?;
+        'technician: for technician_id in &technicians {
+            let technician_node_index = self.technician_indices.get(technician_id).ok_or(ScheduleGraphErrors::WorkerMissing)?;
             technician_node_indices.push(technician_node_index);
 
             for availability_hyperedge in self.incidence_list[*technician_node_index]
@@ -355,11 +366,20 @@ impl ScheduleGraph
                 self.hyperedges[hyperedge_index]
                     .nodes
                     .iter()
-                    .position(|&node_index| self.nodes[node_index] == Node::Activity(activity_number))
+                    .find(|&&node_index| match &self.nodes[node_index] {
+                        Node::Activity(activity) => activity.activity_number == activity_number,
+                        _ => false,
+                    })
             })
             .ok_or(ScheduleGraphErrors::ActivityMissing)?;
 
-        let mut final_nodes_in_hyperedge = vec![activity_node_index];
+        if let Node::Activity(activity) = &self.nodes[*activity_node_index]
+            && technicians.len() > activity.number_of_people as usize
+        {
+            return Err(ScheduleGraphErrors::ActivityExceedNumberOfPeople);
+        }
+
+        let mut final_nodes_in_hyperedge = vec![*activity_node_index];
         final_nodes_in_hyperedge.extend(technician_node_indices);
         final_nodes_in_hyperedge.extend(date_node_indices);
 
@@ -452,8 +472,8 @@ impl ScheduleGraph
             Node::WorkOrder(work_order) => self.work_order_indices.insert(work_order, node_index),
             Node::Period(naive_date) => self.period_indices.insert(naive_date, node_index),
             Node::Skill(skills) => self.skill_indices.insert(skills, node_index),
-            Node::Activity(a) => {
-                debug!(target: "developer", activity = a, "No node index for `Activities`");
+            Node::Activity(ref a) => {
+                debug!(target: "developer", activity = ?a, "No node index for `Activities`");
                 None
             }
             Node::Day(naive_date) => self.day_indices.insert(naive_date, node_index),
@@ -553,9 +573,27 @@ mod tests
 
         // let neighbors = schedule_graph..neighbors(node_id).collect::<Vec<_>>();
 
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 1], Node::Activity(10));
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 2], Node::Activity(20));
-        assert_eq!(schedule_graph.nodes[work_order_node_id + 3], Node::Activity(30));
+        assert_eq!(
+            schedule_graph.nodes[work_order_node_id + 1],
+            Node::Activity(crate::schedule_graph::ActivityNode {
+                activity_number: 10,
+                number_of_people: 1
+            })
+        );
+        assert_eq!(
+            schedule_graph.nodes[work_order_node_id + 2],
+            Node::Activity(crate::schedule_graph::ActivityNode {
+                activity_number: 20,
+                number_of_people: 1
+            })
+        );
+        assert_eq!(
+            schedule_graph.nodes[work_order_node_id + 3],
+            Node::Activity(crate::schedule_graph::ActivityNode {
+                activity_number: 30,
+                number_of_people: 1
+            })
+        );
 
         let _edge_index = schedule_graph.incidence_list[work_order_node_id + 1]
             .iter()

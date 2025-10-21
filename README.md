@@ -17,6 +17,7 @@ Handle
 Take a break now!
 - [x] Test `add_activity_assignment`
 - [x] Ensure every `technician` `availability` overlap with `assignment`
+
 - [ ] Ensure activity `number_of_people` bound
 - [ ] Add node separator in hyperedge
 - [ ] Ensure that the `skill` of the `activity` matches the `technician`
@@ -101,3 +102,17 @@ variable number of nodes of a specific type in the hyperedge.
 1. Use a `usize::MAX` as a seperator
 2. Put a struct into each `HyperEdge` enum variant.
 3. Edge metadata
+
+# DESIGN DECISION: UPDATING OF HYPEREDGES
+I strongly feel that it should be illigal to mutate hyperedges. You would
+have to make an enormous amount of conditionals to check the validity of the
+object---meaning hyperedge.
+
+Because you would have to check every possible partial configuration of the
+objective that could occur from a mutating operation. This is not a good idea...
+
+At the very least you would need to make it extremely clear which methods that
+are mutating and which are not. You would have to make a standard interface for
+handling these kind of things.
+
+# 

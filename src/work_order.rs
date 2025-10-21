@@ -13,7 +13,7 @@ pub type ActivityNumber = u64;
 pub struct Activity
 {
     activity_number: ActivityNumber,
-    number: NumberOfPeople,
+    number_of_people: NumberOfPeople,
     resource: Skill,
 }
 
@@ -28,6 +28,11 @@ impl Activity
     {
         self.resource
     }
+
+    pub fn number_of_people(&self) -> NumberOfPeople
+    {
+        self.number_of_people
+    }
 }
 
 impl Activity
@@ -37,7 +42,7 @@ impl Activity
         Self {
             activity_number,
             resource,
-            number: number_of_people,
+            number_of_people,
         }
     }
 }
