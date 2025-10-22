@@ -18,16 +18,15 @@ Take a break now!
 - [x] Test `add_activity_assignment`
 - [x] Ensure every `technician` `availability` overlap with `assignment`
 
-- [ ] Ensure activity `number_of_people` bound
+- [x] Ensure activity `number_of_people` bound
+
+
 - [ ] Add node separator in hyperedge
 - [ ] Ensure that the `skill` of the `activity` matches the `technician`
-
 - [ ] Add exclusion checker to the system
 - [ ] Apply constant size vecs
 - [ ] Make `ScheduleGraphBuilder`
 - [ ] Make `Parameters` `impl` block
-
-
 
 
 - [ ] Why are `roles` used?
@@ -51,34 +50,34 @@ This crate will implement a hypergraph to work with the
 ordinator scheduling application
 
 
+# DOING
+
+# BACKLOG
+
+# DONE 
 
 # Nodes
 ## WorkOrder
-- [ ] `WorkOrders`
-- [ ] `Activity`
+- [x] `WorkOrders`
+- [x] `Activity`
 
 ## Technician
-- [ ] `Technician`
+- [x] `Technician`
 
 ## Skill
-- [ ] `Skills`
-
+- [x] `Skills`
 
 ## Time
-- [ ] `Period`
-- [ ] `Day`
-- [ ] 
+- [x] `Period`
+- [x] `Day`
 
 ## Edges
-- [ ] Assignment => { $`Activity`, @`Technician`, $`Period`, @`Days`}
+- [x] Assignment => { $`Activity`, @`Technician`, $`Period`, @`Days`}
+- [x] PeriodDay => {$`Period`, @`Day`,}
+- [x] WorkOrderActivity => {$`WorkOrder`, @`Activity`}
+- [x] ActivityRelation => {$`Activity`, $`Activity`}
+- [x] Exclude => {$`WorkOrder`, @`Period`}
 
-- [ ] PeriodDay => {$`Period`, @`Day`,}
-
-- [ ] WorkOrderActivity => {$`WorkOrder`, @`Activity`}
-
-- [ ] ActivityRelation => {$`Activity`, $`Activity`}
-
-- [ ] Exclude => {$`WorkOrder`, @`Period`}
 - [ ] Exclude -> {$`Activity`, @`Day`}
 
 ### Interfaces
@@ -116,3 +115,24 @@ are mutating and which are not. You would have to make a standard interface for
 handling these kind of things.
 
 # 
+
+
+The goal here is to find the quickest possible way for integrating the hypergraph into
+the `ordinator-monorepo` repository. The best approach here is to make the system
+able to derive the `Parameters`
+
+Logic stays that
+
+```
+Actors -> Hypergraph -> SchedulingEnvironment
+````
+
+
+That means that the Actor and therefore the parameters have to
+extract information from the API of the Hypergraph. That is potentially
+not very handy. Builders actually decouple the system quite nicely. 
+
+
+
+That is the best approach I think there is also the issue of making the
+system work 

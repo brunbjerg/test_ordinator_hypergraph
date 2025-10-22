@@ -3,7 +3,12 @@ use std::collections::BTreeSet;
 use chrono::NaiveDate;
 use chrono::NaiveDateTime;
 
-use crate::schedule_graph::Skill;
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
+pub enum Skill
+{
+    MtnMech,
+    MtnElec,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TechnicianBuilderError

@@ -1,0 +1,8 @@
+[package]
+name = "strategic_algorithm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+schedule_hypergraph.path = "../schedule_hypergraph"
+scheduling_environment.path = "../scheduling_environment"

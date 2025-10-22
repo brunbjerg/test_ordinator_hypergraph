@@ -156,10 +156,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
+name = "schedule_hypergraph"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "scheduling_environment",
+ "tracing",
+]
+
+[[package]]
+name = "scheduling_environment"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "strategic_algorithm"
+version = "0.1.0"
+dependencies = [
+ "schedule_hypergraph",
+ "scheduling_environment",
+]
 
 [[package]]
 name = "syn"
@@ -170,14 +194,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "test_ordinator_hypergraph"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "tracing",
 ]
 
 [[package]]

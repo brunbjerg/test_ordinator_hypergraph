@@ -3,12 +3,13 @@ use std::collections::HashSet;
 use chrono::NaiveDate;
 use chrono::TimeDelta;
 
-use crate::schedule_graph::Skill;
+use crate::technician::Skill;
 
 pub type WorkOrderNumber = u64;
 pub type NumberOfPeople = u64;
 
 pub type ActivityNumber = u64;
+pub type Work = f64;
 #[derive(Hash, Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Activity
 {
@@ -94,12 +95,12 @@ impl WorkOrder
         &self.activities
     }
 
-    pub(crate) fn activities_relations(&self) -> Vec<ActivityRelation>
+    pub fn activities_relations(&self) -> Vec<ActivityRelation>
     {
         (0..self.activities.len()).map(|_| ActivityRelation::FinishStart).collect()
     }
 
-    pub(crate) fn basic_start(&self) -> NaiveDate
+    pub fn basic_start(&self) -> NaiveDate
     {
         self.basic_start_date
     }

@@ -2,18 +2,19 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
+use chrono::Days;
 use chrono::Duration;
 use chrono::NaiveDate;
 use chrono::NaiveTime;
+use scheduling_environment::technician::Availability;
+use scheduling_environment::technician::Skill;
+use scheduling_environment::technician::Technician;
+use scheduling_environment::work_order::ActivityNumber;
+use scheduling_environment::work_order::ActivityRelation;
+use scheduling_environment::work_order::NumberOfPeople;
+use scheduling_environment::work_order::WorkOrder;
+use scheduling_environment::work_order::WorkOrderNumber;
 use tracing::debug;
-
-use crate::technician::Availability;
-use crate::technician::Technician;
-use crate::work_order::ActivityNumber;
-use crate::work_order::ActivityRelation;
-use crate::work_order::NumberOfPeople;
-use crate::work_order::WorkOrder;
-use crate::work_order::WorkOrderNumber;
 
 // Type Alias to make reasoning about the indices easier
 pub type NodeIndex = usize;
@@ -67,13 +68,6 @@ struct ActivityNode
 {
     activity_number: ActivityNumber,
     number_of_people: NumberOfPeople,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub enum Skill
-{
-    MtnMech,
-    MtnElec,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -444,15 +438,31 @@ impl ScheduleGraph
     /// * `Period` does not exist.
     /// * The hyperedge between the `WorkOrderNumber` and `Period` already
     ///   exists.
+    //[ ] TODO  [ ] exclusion should work on the days as well.
     pub fn add_exclusion(&mut self, work_order_number: &WorkOrderNumber, period: &Period) -> Result<EdgeIndex, ScheduleGraphErrors>
     {
-        let work_order_node_id = self
+        let work_order_node_index = self
             .work_order_indices
             .get(work_order_number)
             .ok_or(ScheduleGraphErrors::WorkOrderMissing)?;
-        let period_node_id = self.period_indices.get(period).ok_or(ScheduleGraphErrors::PeriodMissing)?;
+        let period_node_index = self.period_indices.get(period).ok_or(ScheduleGraphErrors::PeriodMissing)?;
 
-        Ok(self.add_edge(EdgeType::Exclude, vec![*work_order_node_id, *period_node_id]))
+        let days_node_indices = self
+            .day_indices
+            .iter()
+            .filter_map(|(&naive_date, &date_index)| {
+                if period.0 <= naive_date && naive_date <= period.0.checked_add_days(Days::new(13)).unwrap() {
+                    Some(date_index)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let mut final_nodes_in_hyperedge = vec![*work_order_node_index, *period_node_index];
+        final_nodes_in_hyperedge.extend(days_node_indices);
+
+        Ok(self.add_edge(EdgeType::Exclude, final_nodes_in_hyperedge))
     }
 }
 
@@ -515,18 +525,18 @@ mod tests
     use chrono::Duration;
     use chrono::NaiveDate;
     use chrono::NaiveTime;
+    use scheduling_environment::technician::Availability;
+    use scheduling_environment::technician::Skill;
+    use scheduling_environment::technician::Technician;
+    use scheduling_environment::work_order::Activity;
+    use scheduling_environment::work_order::WorkOrder;
 
     use super::HyperEdge;
     use super::Node;
     use super::ScheduleGraph;
-    use super::Skill;
     use crate::schedule_graph::EdgeType;
     use crate::schedule_graph::Period;
     use crate::schedule_graph::ScheduleGraphErrors;
-    use crate::technician::Availability;
-    use crate::technician::Technician;
-    use crate::work_order::Activity;
-    use crate::work_order::WorkOrder;
 
     #[test]
     fn test_schedule_graph_new()
@@ -757,9 +767,9 @@ mod tests
         let _worker_node = schedule_graph.add_node(Node::Technician(1234));
         let _skill_node = schedule_graph.add_node(Node::Skill(Skill::MtnMech));
 
-        assert!(schedule_graph.add_assign_skill_to_worker(1234, super::Skill::MtnMech).is_ok());
+        assert!(schedule_graph.add_assign_skill_to_worker(1234, Skill::MtnMech).is_ok());
         assert_eq!(
-            schedule_graph.add_assign_skill_to_worker(1234, super::Skill::MtnElec),
+            schedule_graph.add_assign_skill_to_worker(1234, Skill::MtnElec),
             Err(ScheduleGraphErrors::SkillMissing)
         );
     }
@@ -847,24 +857,24 @@ mod tests
 
         let period = Period(basic_start_date);
 
-        let period_node_id = schedule_graph.add_period(period).unwrap();
-        let work_order_node_id = schedule_graph.add_work_order(&work_order).unwrap();
+        let period_node_index = schedule_graph.add_period(period).unwrap();
+        let work_order_node_index = schedule_graph.add_work_order(&work_order).unwrap();
 
-        let exclusion_edge = schedule_graph.add_exclusion(&1111990000, &period).unwrap();
+        let exclusion_edge_index = schedule_graph.add_exclusion(&1111990000, &period).unwrap();
 
         assert_eq!(
             schedule_graph.hyperedges[1],
             HyperEdge {
                 edge_type: EdgeType::Exclude,
-                nodes: vec![work_order_node_id, period_node_id]
+                nodes: vec![work_order_node_index, period_node_index, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,]
             }
         );
 
-        dbg!(schedule_graph.hyperedges.get(schedule_graph.incidence_list[work_order_node_id][0]));
-        dbg!(schedule_graph.hyperedges.get(schedule_graph.incidence_list[work_order_node_id][1]));
+        dbg!(schedule_graph.hyperedges.get(schedule_graph.incidence_list[work_order_node_index][0]));
+        dbg!(schedule_graph.hyperedges.get(schedule_graph.incidence_list[work_order_node_index][1]));
 
-        assert!(schedule_graph.incidence_list[work_order_node_id].contains(&exclusion_edge));
-        assert!(schedule_graph.incidence_list[period_node_id].contains(&exclusion_edge));
+        assert!(schedule_graph.incidence_list[work_order_node_index].contains(&exclusion_edge_index));
+        assert!(schedule_graph.incidence_list[period_node_index].contains(&exclusion_edge_index));
     }
 
     #[test]

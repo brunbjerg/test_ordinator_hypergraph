@@ -1,0 +1,11 @@
+[package]
+name = "schedule_hypergraph"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+scheduling_environment.path = "./../scheduling_environment"
+
+chrono.workspace = true
+tracing.workspace =true
+

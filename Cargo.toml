@@ -1,8 +1,10 @@
-[package]
-name = "test_ordinator_hypergraph"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = [
+  "./crates/strategic_algorithm",
+  "./crates/scheduling_environment",
+  "./crates/schedule_hypergraph",
+]
 
-[dependencies]
+[workspace.dependencies]
 chrono = "0.4.41"
 tracing = "0.1.41"
