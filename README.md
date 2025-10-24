@@ -14,7 +14,6 @@ Handle
 - [x] Implement the bidirectional `incidence` list
 - [x] Implement `Technician`/`Worker` aggregate
 
-Take a break now!
 - [x] Test `add_activity_assignment`
 - [x] Ensure every `technician` `availability` overlap with `assignment`
 
