@@ -6,6 +6,7 @@ use chrono::Days;
 use chrono::Duration;
 use chrono::NaiveDate;
 use chrono::NaiveTime;
+use scheduling_environment::Period;
 use scheduling_environment::technician::Availability;
 use scheduling_environment::technician::Skill;
 use scheduling_environment::technician::Technician;
@@ -42,18 +43,28 @@ pub enum ScheduleGraphErrors
     ActivityExceedNumberOfPeople,
 }
 
-#[derive(Hash, Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct Period(NaiveDate);
-
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct HyperEdge
+pub(crate) struct HyperEdge
 {
     edge_type: EdgeType,
     nodes: Vec<NodeIndex>,
 }
 
+impl HyperEdge
+{
+    pub(crate) fn edge_type(&self) -> &EdgeType
+    {
+        &self.edge_type
+    }
+
+    pub(crate) fn nodes(&self) -> &[NodeIndex]
+    {
+        &self.nodes
+    }
+}
+
 #[derive(Hash, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-enum Node
+pub(crate) enum Node
 {
     Technician(TechnicianId),
     WorkOrder(WorkOrderNumber),
@@ -118,7 +129,7 @@ pub struct ScheduleGraph
 /// Public methods
 impl ScheduleGraph
 {
-    pub fn new() -> Self
+    pub(crate) fn new() -> Self
     {
         Self {
             nodes: vec![],
@@ -130,6 +141,21 @@ impl ScheduleGraph
             skill_indices: HashMap::new(),
             day_indices: BTreeMap::new(),
         }
+    }
+
+    pub(crate) fn nodes(&self) -> &[Node]
+    {
+        &self.nodes
+    }
+
+    pub(crate) fn hyperedges(&self) -> &[HyperEdge]
+    {
+        &self.hyperedges
+    }
+
+    pub(crate) fn incidence_list(&self) -> &[Vec<EdgeIndex>]
+    {
+        &self.incidence_list
     }
 }
 
@@ -194,7 +220,7 @@ impl ScheduleGraph
             return Err(ScheduleGraphErrors::PeriodDuplicate);
         };
 
-        let days_in_period = (0..14).map(|e| period.0 + chrono::Days::new(e)).collect::<Vec<_>>();
+        let days_in_period = (0..14).map(|e| period.start_date() + chrono::Days::new(e)).collect::<Vec<_>>();
 
         for day in days_in_period {
             let day_node = self.add_node(Node::Day(day));
@@ -411,7 +437,7 @@ impl ScheduleGraph
                         }
                     }
                     Node::Day(naive_date) => {
-                        if period_start_date.0 <= naive_date && naive_date < (period_start_date.0 + Duration::days(13)) {
+                        if period_start_date.start_date() <= naive_date && naive_date < (period_start_date.start_date() + Duration::days(13)) {
                             edges.push(*edge_index)
                         }
                     }
@@ -451,7 +477,7 @@ impl ScheduleGraph
             .day_indices
             .iter()
             .filter_map(|(&naive_date, &date_index)| {
-                if period.0 <= naive_date && naive_date <= period.0.checked_add_days(Days::new(13)).unwrap() {
+                if period.start_date() <= naive_date && naive_date <= period.start_date().checked_add_days(Days::new(13)).unwrap() {
                     Some(date_index)
                 } else {
                     None
@@ -546,13 +572,15 @@ mod tests
         let date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
         let index_worker = schedule_graph.add_node(Node::Technician(1234));
         let index_workorder = schedule_graph.add_node(Node::WorkOrder(1122334455));
-        let index_period = schedule_graph.add_period(Period(date)).unwrap();
+        let index_period = schedule_graph.add_period(Period::from_start_date(date)).unwrap();
 
         assert!(schedule_graph.nodes[index_worker] == Node::Technician(1234));
         assert!(schedule_graph.nodes[index_workorder] == Node::WorkOrder(1122334455));
-        assert!(schedule_graph.nodes[index_period] == Node::Period(Period(date)));
+        assert!(schedule_graph.nodes[index_period] == Node::Period(Period::from_start_date(date)));
 
-        schedule_graph.add_assignment_work_order(1234, 1122334455, Period(date)).unwrap();
+        schedule_graph
+            .add_assignment_work_order(1234, 1122334455, Period::from_start_date(date))
+            .unwrap();
     }
 
     #[test]
@@ -576,7 +604,7 @@ mod tests
 
         assert_eq!(schedule_graph.add_work_order(&work_order), Err(ScheduleGraphErrors::DayMissing));
 
-        let _period_node_id = schedule_graph.add_period(Period(basic_start_date)).unwrap();
+        let _period_node_id = schedule_graph.add_period(Period::from_start_date(basic_start_date)).unwrap();
         let work_order_node_id = schedule_graph.add_work_order(&work_order).expect("Could not add work order");
 
         assert_eq!(schedule_graph.nodes[work_order_node_id], Node::WorkOrder(1122334455));
@@ -687,7 +715,7 @@ mod tests
 
         schedule_graph.add_node(Node::Skill(Skill::MtnMech));
 
-        schedule_graph.add_period(Period(start.date())).unwrap();
+        schedule_graph.add_period(Period::from_start_date(start.date())).unwrap();
 
         let availability = Availability::new(start, end);
 
@@ -700,7 +728,7 @@ mod tests
             assert_eq!(schedule_graph.nodes[index], Node::Day(date + Duration::days((index - 1) as i64)));
         }
 
-        assert_eq!(schedule_graph.nodes[15], Node::Period(Period(start.date())));
+        assert_eq!(schedule_graph.nodes[15], Node::Period(Period::from_start_date(start.date())));
 
         // TODO [ ] - This should be made into a method for retriving the correct
         // indices
@@ -731,7 +759,7 @@ mod tests
         let technician_node_index_1 = schedule_graph.add_node(technician_node_1.clone());
         let work_order_node_1 = Node::WorkOrder(1122334455);
         let work_order_node_index_1 = schedule_graph.add_node(work_order_node_1.clone());
-        let period_node_1 = Node::Period(Period(date));
+        let period_node_1 = Node::Period(Period::from_start_date(date));
         let period_node_index_1 = schedule_graph.add_node(period_node_1.clone());
 
         assert!(schedule_graph.nodes[technician_node_index_1] == technician_node_1);
@@ -740,7 +768,9 @@ mod tests
 
         // Using builder to make complex edges will become crucial for the
         // system to function correctly.
-        let assignment_edge_index_0 = schedule_graph.add_assignment_work_order(1234, 1122334455, Period(date)).unwrap();
+        let assignment_edge_index_0 = schedule_graph
+            .add_assignment_work_order(1234, 1122334455, Period::from_start_date(date))
+            .unwrap();
 
         let technician_node_2 = Node::Technician(1236);
         let technician_node_index_2 = schedule_graph.add_node(technician_node_2.clone());
@@ -750,9 +780,11 @@ mod tests
         assert!(schedule_graph.nodes[technician_node_index_2] == technician_node_2);
         assert!(schedule_graph.nodes[work_order_node_index_2] == work_order_node_2);
         assert!(schedule_graph.nodes[period_node_index_1] == period_node_1);
-        let assignment_edge_index_1 = schedule_graph.add_assignment_work_order(1236, 1122334456, Period(date)).unwrap();
+        let assignment_edge_index_1 = schedule_graph
+            .add_assignment_work_order(1236, 1122334456, Period::from_start_date(date))
+            .unwrap();
 
-        let assignment_edges = schedule_graph.find_all_assignments_for_period(Period(date)).unwrap();
+        let assignment_edges = schedule_graph.find_all_assignments_for_period(Period::from_start_date(date)).unwrap();
 
         assert_eq!(assignment_edges[0], assignment_edge_index_0);
 
@@ -779,9 +811,9 @@ mod tests
     {
         let mut schedule_state = ScheduleGraph::new();
 
-        let period_1 = Period(NaiveDate::from_ymd_opt(2025, 1, 13).unwrap());
-        let period_2 = Period(NaiveDate::from_ymd_opt(2025, 1, 27).unwrap());
-        let period_3 = Period(NaiveDate::from_ymd_opt(2025, 2, 10).unwrap());
+        let period_1 = Period::from_start_date(NaiveDate::from_ymd_opt(2025, 1, 13).unwrap());
+        let period_2 = Period::from_start_date(NaiveDate::from_ymd_opt(2025, 1, 27).unwrap());
+        let period_3 = Period::from_start_date(NaiveDate::from_ymd_opt(2025, 2, 10).unwrap());
 
         let _node_id = schedule_state.add_period(period_1).unwrap();
         let _node_id = schedule_state.add_period(period_2).unwrap();
@@ -855,7 +887,7 @@ mod tests
         let basic_start_date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
         let work_order = WorkOrder::new(1111990000, basic_start_date, vec![]).unwrap();
 
-        let period = Period(basic_start_date);
+        let period = Period::from_start_date(basic_start_date);
 
         let period_node_index = schedule_graph.add_period(period).unwrap();
         let work_order_node_index = schedule_graph.add_work_order(&work_order).unwrap();
@@ -895,9 +927,9 @@ mod tests
         let _skill_node_elec = schedule_graph.add_node(Node::Skill(Skill::MtnElec));
 
         // Add period (creates day nodes)
-        let period_0 = Period(basic_start_date_0);
-        let _period_node_index_0 = schedule_graph.add_period(period_0).unwrap();
-        let period_1 = Period(basic_start_date_1);
+        let period = Period::from_start_date(basic_start_date_0);
+        let _period_node_index_0 = schedule_graph.add_period(period).unwrap();
+        let period_1 = Period::from_start_date(basic_start_date_1);
         let _period_node_index_1 = schedule_graph.add_period(period_1).unwrap();
 
         // Create WorkOrder with activities

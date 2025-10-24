@@ -2,19 +2,21 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use schedule_hypergraph::schedule_graph::Period;
+use schedule_hypergraph::schedule_graph::ScheduleGraph;
 use schedule_hypergraph::schedule_graph::TechnicianId;
 use scheduling_environment::technician::Skill;
 use scheduling_environment::work_order::Work;
 use scheduling_environment::work_order::WorkOrderNumber;
 
 #[derive(Debug)]
-pub struct StrategicParameters
+pub struct StrategicInstance
 {
     pub strategic_work_order_parameters: HashMap<WorkOrderNumber, WorkOrderParameter>,
+    // This comes from technician availability
     pub strategic_capacity: StrategicResources,
     // pub strategic_clustering: StrategicClustering,
+    // This comes from the `assignment`.
     pub period_locks: HashSet<Period>,
-
     // TODO #04 #00 #01
     // enum PeriodState {
     //     Previous(Period),
@@ -26,13 +28,14 @@ pub struct StrategicParameters
     // of the [`SystemClock`].
     pub strategic_periods: Vec<Period>,
     // TODO [ ] Should the options be here? Yes they, no they should not.
-    // WARN: Now you know why!
+    // WARN [ ] Now you know why!
     // pub strategic_options: StrategicOptions,
 }
 
 // Okay, this is beginning to look like the right kind of thing
 // now. It is crucial that you pace yourself and do not make the
 // mistake of losing faith.
+//
 #[derive(Debug, PartialEq, Clone)]
 pub struct WorkOrderParameter
 {
@@ -41,7 +44,7 @@ pub struct WorkOrderParameter
     pub latest_period: Period,
 
     pub weight: i64,
-    // This weight is derived from the ['StrategicOptions`]. This means that the code should
+    // This weight is derived from the [`StrategicOptions`]. This means that the code should
     // work better
     pub work_load: HashMap<Skill, Work>,
 }
@@ -55,4 +58,19 @@ pub struct OperationalResource
     pub id: TechnicianId,
     pub total_hours: Work,
     pub skill_hours: HashMap<Skill, Work>,
+}
+
+impl From<&ScheduleGraph> for StrategicInstance {
+    fn from(value: &ScheduleGraph) -> Self {
+
+        // TODO [ ] - You have to derive the StrategicInstance
+        value.
+
+        Self {
+            strategic_work_order_parameters: todo!(),
+            strategic_capacity: todo!(),
+            period_locks: todo!(),
+            strategic_periods: todo!(),
+        }
+    }
 }
